@@ -23,6 +23,58 @@ import (
 	"github.com/terraform-providers/terraform-provider-aws/aws/internal/keyvaluetags"
 )
 
+func ebsConfigurationSchema() *schema.Resource {
+	return &schema.Resource{
+		Schema: map[string]*schema.Schema{
+			"iops": {
+				Type:     schema.TypeInt,
+				Optional: true,
+				ForceNew: true,
+			},
+			"size": {
+				Type:     schema.TypeInt,
+				Required: true,
+				ForceNew: true,
+			},
+			"type": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validateAwsEmrEbsVolumeType(),
+			},
+			"volumes_per_instance": {
+				Type:     schema.TypeInt,
+				Optional: true,
+				ForceNew: true,
+				Default:  1,
+			},
+		},
+	}
+}
+
+func expandEbsConfiguration(ebsConfigurations []interface{}) *emr.EbsConfiguration {
+	ebsConfig := &emr.EbsConfiguration{}
+	ebsConfigs := make([]*emr.EbsBlockDeviceConfig, 0)
+	for _, ebsConfiguration := range ebsConfigurations {
+		cfg := ebsConfiguration.(map[string]interface{})
+		ebs := &emr.EbsBlockDeviceConfig{}
+		volumeSpec := &emr.VolumeSpecification{
+			SizeInGB:   aws.Int64(int64(cfg["size"].(int))),
+			VolumeType: aws.String(cfg["type"].(string)),
+		}
+		if v, ok := cfg["iops"].(int); ok && v != 0 {
+			volumeSpec.Iops = aws.Int64(int64(v))
+		}
+		if v, ok := cfg["volumes_per_instance"].(int); ok && v != 0 {
+			ebs.VolumesPerInstance = aws.Int64(int64(v))
+		}
+		ebs.VolumeSpecification = volumeSpec
+		ebsConfigs = append(ebsConfigs, ebs)
+	}
+	ebsConfig.EbsBlockDeviceConfigs = ebsConfigs
+	return ebsConfig
+}
+
 func resourceAwsEMRCluster() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceAwsEMRClusterCreate,
@@ -491,6 +543,50 @@ func resourceAwsEMRCluster() *schema.Resource {
 				},
 				Set: resourceAwsEMRClusterInstanceGroupHash,
 			},
+			"instance_fleet": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				ForceNew: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"instance_fleet_type": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ForceNew:     true,
+							ValidateFunc: validateAwsEmrInstanceFleetType,
+						},
+						"instance_type_configs": {
+							Type:     schema.TypeSet,
+							Optional: true,
+							ForceNew: true,
+							Elem:     instanceTypeConfigSchema(),
+						},
+						"launch_specifications": {
+							Type:     schema.TypeSet,
+							Optional: true,
+							ForceNew: true,
+							MinItems: 1,
+							MaxItems: 1,
+							Elem:     launchSpecificationsSchema(),
+						},
+						"name": {
+							Type:     schema.TypeString,
+							Optional: true,
+							ForceNew: true,
+						},
+						"target_on_demand_capacity": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  0,
+						},
+						"target_spot_capacity": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							Default:  0,
+						},
+					},
+				},
+			},
 			"bootstrap_action": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -807,6 +903,17 @@ func resourceAwsEMRClusterCreate(d *schema.ResourceData, meta interface{}) error
 		instanceConfig.InstanceGroups = instanceGroups
 	}
 
+	if v, ok := d.GetOk("instance_fleet"); ok {
+		instanceFleetConfigs := v.(*schema.Set).List()
+		instanceFleets, err := expandInstanceFleetConfigs(instanceFleetConfigs)
+
+		if err != nil {
+			return fmt.Errorf("error parsing EMR instance fleets configuration: %s", err)
+		}
+
+		instanceConfig.InstanceFleets = instanceFleets
+	}
+
 	emrApps := expandApplications(applications)
 
 	params := &emr.RunJobFlowInput{
@@ -1041,6 +1148,20 @@ func resourceAwsEMRClusterRead(d *schema.ResourceData, meta interface{}) error {
 
 	if err := d.Set("tags", keyvaluetags.EmrKeyValueTags(cluster.Tags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
 		return fmt.Errorf("error settings tags: %s", err)
+	}
+
+	instanceFleets, err := fetchAllEMRInstanceFleets(emrconn, d.Id())
+
+	if err != nil {
+		return err
+	}
+
+	flattenedInstanceFleets, err := flattenInstanceFleets(instanceFleets)
+	if err != nil {
+		return fmt.Errorf("error flattening instance fleets: %s", err)
+	}
+	if err := d.Set("instance_fleet", flattenedInstanceFleets); err != nil {
+		return fmt.Errorf("error setting instance_fleet: %s", err)
 	}
 
 	d.Set("name", cluster.Name)
@@ -1728,6 +1849,52 @@ func flattenInstanceGroups(igs []*emr.InstanceGroup) (*schema.Set, error) {
 	return schema.NewSet(resourceAwsEMRClusterInstanceGroupHash, instanceGroupSet), nil
 }
 
+func flatteninstanceTypeConfig(itc *emr.InstanceTypeSpecification) (map[string]interface{}, error) {
+	attrs := map[string]interface{}{}
+	attrs["bid_price"] = *itc.BidPrice
+	attrs["bid_price_as_percentage_of_ondemand_price"] = *itc.BidPriceAsPercentageOfOnDemandPrice
+	attrs["ebs_config"] = flattenEBSConfig(itc.EbsBlockDevices)
+	attrs["instance_type"] = *itc.InstanceType
+	attrs["weighted_capacity"] = *itc.WeightedCapacity
+	return attrs, nil
+}
+
+func flattenInstanceFleet(ig *emr.InstanceFleet) (map[string]interface{}, error) {
+	attrs := map[string]interface{}{}
+
+	attrs["id"] = *ig.Id
+	attrs["name"] = *ig.Name
+	attrs["instance_fleet_type"] = *ig.InstanceFleetType
+	attrs["target_on_demand_capacity"] = *ig.TargetOnDemandCapacity
+	attrs["target_spot_capacity"] = *ig.TargetSpotCapacity
+	instanceTypeConfigs := []interface{}{}
+	for _, itc := range ig.InstanceTypeSpecifications {
+		flattenTypeConfig, err := flatteninstanceTypeConfig(itc)
+		if err != nil {
+			return nil, err
+		}
+
+		instanceTypeConfigs = append(instanceTypeConfigs, flattenTypeConfig)
+	}
+
+	attrs["instance_type_configs"] = instanceTypeConfigs
+
+	return attrs, nil
+}
+
+func flattenInstanceFleets(ifleets []*emr.InstanceFleet) (*schema.Set, error) {
+	instanceFleetSet := []interface{}{}
+	for _, fleet := range ifleets {
+		flattenedInstanceFleet, err := flattenInstanceFleet(fleet)
+		if err != nil {
+			return nil, err
+		}
+		instanceFleetSet = append(instanceFleetSet, flattenedInstanceFleet)
+	}
+
+	return schema.NewSet(resourceAwsEMRClusterInstanceFleetHash, instanceFleetSet), nil
+}
+
 func flattenEBSConfig(ebsBlockDevices []*emr.EbsBlockDevice) *schema.Set {
 
 	ebsConfig := make([]interface{}, 0)
@@ -2101,6 +2268,22 @@ func resourceAwsEMRClusterInstanceGroupHash(v interface{}) int {
 	return hashcode.String(buf.String())
 }
 
+func resourceAwsEMRClusterInstanceFleetHash(v interface{}) int {
+	var buf bytes.Buffer
+	instanceFleets := v.(*schema.Set).List()
+	if len(instanceFleets) > 1 {
+		for _, fleet := range instanceFleets {
+			fleetMap := fleet.(map[string]interface{})
+			buf.WriteString(fmt.Sprintf("%s-", fleetMap["name"]))
+			buf.WriteString(fmt.Sprintf("%s-", fleetMap["instance_fleet_type"]))
+			buf.WriteString(fmt.Sprintf("%d-", fleetMap["target_on_demand_capacity"]))
+			buf.WriteString(fmt.Sprintf("%d-", fleetMap["target_spot_capacity"]))
+		}
+	}
+
+	return hashcode.String(buf.String())
+}
+
 func resourceAwsEMRClusterEBSConfigHash(v interface{}) int {
 	var buf bytes.Buffer
 	m := v.(map[string]interface{})
@@ -2142,4 +2325,19 @@ func fetchAllEMRInstanceGroups(conn *emr.EMR, clusterID string) ([]*emr.Instance
 	})
 
 	return groups, err
+}
+
+func fetchAllEMRInstanceFleets(conn *emr.EMR, clusterID string) ([]*emr.InstanceFleet, error) {
+	input := &emr.ListInstanceFleetsInput{
+		ClusterId: aws.String(clusterID),
+	}
+	var fleets []*emr.InstanceFleet
+
+	err := conn.ListInstanceFleetsPages(input, func(page *emr.ListInstanceFleetsOutput, lastPage bool) bool {
+		fleets = append(fleets, page.InstanceFleets...)
+
+		return !lastPage
+	})
+
+	return fleets, err
 }
