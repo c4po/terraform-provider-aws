@@ -1104,64 +1104,62 @@ func resourceAwsEMRClusterRead(d *schema.ResourceData, meta interface{}) error {
 
 	instanceGroups, err := fetchAllEMRInstanceGroups(emrconn, d.Id())
 
-	if err != nil {
-		return err
-	}
+	if err == nil {
+		log.Printf("instanceGroups: %+v\n", instanceGroups)
+		coreGroup := emrCoreInstanceGroup(instanceGroups)
+		masterGroup := findMasterGroup(instanceGroups)
 
-	coreGroup := emrCoreInstanceGroup(instanceGroups)
-	masterGroup := findMasterGroup(instanceGroups)
+		d.Set("core_instance_count", 0)
+		d.Set("core_instance_type", "")
+		d.Set("master_instance_type", "")
 
-	d.Set("core_instance_count", 0)
-	d.Set("core_instance_type", "")
-	d.Set("master_instance_type", "")
+		if coreGroup != nil {
+			d.Set("core_instance_type", coreGroup.InstanceType)
+			d.Set("core_instance_count", coreGroup.RequestedInstanceCount)
+		}
 
-	if coreGroup != nil {
-		d.Set("core_instance_type", coreGroup.InstanceType)
-		d.Set("core_instance_count", coreGroup.RequestedInstanceCount)
-	}
+		if masterGroup != nil {
+			d.Set("master_instance_type", masterGroup.InstanceType)
+		}
 
-	if masterGroup != nil {
-		d.Set("master_instance_type", masterGroup.InstanceType)
-	}
+		flattenedInstanceGroups, err := flattenInstanceGroups(instanceGroups)
+		if err != nil {
+			return fmt.Errorf("error flattening instance groups: %s", err)
+		}
+		if err := d.Set("instance_group", flattenedInstanceGroups); err != nil {
+			return fmt.Errorf("error setting instance_group: %s", err)
+		}
 
-	flattenedInstanceGroups, err := flattenInstanceGroups(instanceGroups)
-	if err != nil {
-		return fmt.Errorf("error flattening instance groups: %s", err)
-	}
-	if err := d.Set("instance_group", flattenedInstanceGroups); err != nil {
-		return fmt.Errorf("error setting instance_group: %s", err)
-	}
+		flattenedCoreInstanceGroup, err := flattenEmrCoreInstanceGroup(coreGroup)
 
-	flattenedCoreInstanceGroup, err := flattenEmrCoreInstanceGroup(coreGroup)
+		if err != nil {
+			return fmt.Errorf("error flattening core_instance_group: %s", err)
+		}
 
-	if err != nil {
-		return fmt.Errorf("error flattening core_instance_group: %s", err)
-	}
+		if err := d.Set("core_instance_group", flattenedCoreInstanceGroup); err != nil {
+			return fmt.Errorf("error setting core_instance_group: %s", err)
+		}
 
-	if err := d.Set("core_instance_group", flattenedCoreInstanceGroup); err != nil {
-		return fmt.Errorf("error setting core_instance_group: %s", err)
-	}
+		if err := d.Set("master_instance_group", flattenEmrMasterInstanceGroup(masterGroup)); err != nil {
+			return fmt.Errorf("error setting master_instance_group: %s", err)
+		}
 
-	if err := d.Set("master_instance_group", flattenEmrMasterInstanceGroup(masterGroup)); err != nil {
-		return fmt.Errorf("error setting master_instance_group: %s", err)
-	}
-
-	if err := d.Set("tags", keyvaluetags.EmrKeyValueTags(cluster.Tags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
-		return fmt.Errorf("error settings tags: %s", err)
+		if err := d.Set("tags", keyvaluetags.EmrKeyValueTags(cluster.Tags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
+			return fmt.Errorf("error settings tags: %s", err)
+		}
 	}
 
 	instanceFleets, err := fetchAllEMRInstanceFleets(emrconn, d.Id())
 
-	if err != nil {
-		return err
-	}
-
-	flattenedInstanceFleets, err := flattenInstanceFleets(instanceFleets)
-	if err != nil {
-		return fmt.Errorf("error flattening instance fleets: %s", err)
-	}
-	if err := d.Set("instance_fleet", flattenedInstanceFleets); err != nil {
-		return fmt.Errorf("error setting instance_fleet: %s", err)
+	if err == nil {
+		flattenedInstanceFleets, err := flattenInstanceFleets(instanceFleets)
+		if err != nil {
+			return fmt.Errorf("error flattening instance fleets: %s", err)
+		}
+		log.Printf("flattenedInstanceFleets: %+v\n", flattenedInstanceFleets)
+		if err := d.Set("instance_fleet", flattenedInstanceFleets); err != nil {
+			return fmt.Errorf("error setting instance_fleet: %s", err)
+		}
 	}
 
 	d.Set("name", cluster.Name)
@@ -1851,8 +1849,12 @@ func flattenInstanceGroups(igs []*emr.InstanceGroup) (*schema.Set, error) {
 
 func flatteninstanceTypeConfig(itc *emr.InstanceTypeSpecification) (map[string]interface{}, error) {
 	attrs := map[string]interface{}{}
-	attrs["bid_price"] = *itc.BidPrice
-	attrs["bid_price_as_percentage_of_ondemand_price"] = *itc.BidPriceAsPercentageOfOnDemandPrice
+	if itc.BidPrice != nil {
+		attrs["bid_price"] = *itc.BidPrice
+	}
+	if itc.BidPriceAsPercentageOfOnDemandPrice != nil {
+		attrs["bid_price_as_percentage_of_on_demand_price"] = *itc.BidPriceAsPercentageOfOnDemandPrice
+	}
 	attrs["ebs_config"] = flattenEBSConfig(itc.EbsBlockDevices)
 	attrs["instance_type"] = *itc.InstanceType
 	attrs["weighted_capacity"] = *itc.WeightedCapacity
@@ -2270,16 +2272,16 @@ func resourceAwsEMRClusterInstanceGroupHash(v interface{}) int {
 
 func resourceAwsEMRClusterInstanceFleetHash(v interface{}) int {
 	var buf bytes.Buffer
-	instanceFleets := v.(*schema.Set).List()
-	if len(instanceFleets) > 1 {
-		for _, fleet := range instanceFleets {
-			fleetMap := fleet.(map[string]interface{})
-			buf.WriteString(fmt.Sprintf("%s-", fleetMap["name"]))
-			buf.WriteString(fmt.Sprintf("%s-", fleetMap["instance_fleet_type"]))
-			buf.WriteString(fmt.Sprintf("%d-", fleetMap["target_on_demand_capacity"]))
-			buf.WriteString(fmt.Sprintf("%d-", fleetMap["target_spot_capacity"]))
-		}
-	}
+	m := v.(map[string]interface{})
+	// if len(instanceFleets) > 1 {
+	// 	for _, fleet := range instanceFleets {
+	// 		fleetMap := fleet.(map[string]interface{})
+	buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
+	buf.WriteString(fmt.Sprintf("%s-", m["instance_fleet_type"].(string)))
+	buf.WriteString(fmt.Sprintf("%d-", m["target_on_demand_capacity"]))
+	buf.WriteString(fmt.Sprintf("%d-", m["target_spot_capacity"]))
+	// 	}
+	// }
 
 	return hashcode.String(buf.String())
 }
