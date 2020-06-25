@@ -1,7 +1,7 @@
 ---
+subcategory: "Elastic Map Reduce (EMR)"
 layout: "aws"
 page_title: "AWS: aws_emr_instance_fleet"
-sidebar_current: "docs-aws-resource-emr-instance-fleet"
 description: |-
   Provides an Elastic MapReduce Cluster Instance Fleet
 ---
