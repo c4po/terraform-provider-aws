@@ -11,9 +11,11 @@ require (
 	github.com/golangci/golangci-lint v1.26.0
 	github.com/hashicorp/aws-sdk-go-base v0.4.0
 	github.com/hashicorp/go-cleanhttp v0.5.1
+	github.com/hashicorp/go-getter v1.4.2-0.20200106182914-9813cbd4eb02 // indirect
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-plugin v1.3.0 // indirect
 	github.com/hashicorp/go-version v1.2.1
-	github.com/hashicorp/terraform v0.12.26
+	github.com/hashicorp/terraform-config-inspect v0.0.0-20191212124732-c6ae6269b9d7 // indirect
 	github.com/hashicorp/terraform-plugin-sdk v1.14.0
 	github.com/hashicorp/vault v0.10.4
 	github.com/jen20/awspolicyequivalence v1.1.0
@@ -21,6 +23,7 @@ require (
 	github.com/mitchellh/copystructure v1.0.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/otp v1.2.0
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
 	golang.org/x/tools v0.0.0-20200422022333-3d57cf2e726e
 	gopkg.in/yaml.v2 v2.2.8
 )
