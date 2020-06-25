@@ -1,31 +1,59 @@
 ## 2.68.0 (Unreleased)
 
+FEATURES:
+
+* **New Data Source:** `aws_efs_access_points` [GH-13918]
+* **New Resource:** `aws_wafv2_web_acl_logging_configuration` [GH-13892]
+
 ENHANCEMENTS:
 
+* data-soruce/aws_ami: Add `arn` attribute [GH-12038]
 * data-source/aws_customer_gateway: Add `arn` attribute [GH-13611]
 * data-source/aws_ebs_snapshot: Add `arn` attribute [GH-13840]
 * data-source/aws_vpc_endpoint: Add `arn` attribute [GH-13852]
 * data-source/aws_vpc_endpoint_service: Add `arn` attribute [GH-13856]
 * data-source/aws_vpn_gateway: Add `arn` attribute [GH-13827]
+* resource/aws_ami: Add `arn` attribute and plan-time validations to `architecture`, `volume_type` and `virtualization_type` arguments [GH-12038]
+* resource/aws_ami_copy: Add `arn` attribute [GH-12038]
+* resource/aws_ami_from_instance: Add `arn` attribute [GH-12038]
 * resource/aws_customer_gateway: Add `arn` attribute and plan-time validations for `bgp_asn`, `ip_address`, and `type` arguments [GH-13611]
 * resource/aws_default_network_acl: Add `arn` attribute and plan-time validations for `ingress` and `egress` configuration block arguments [GH-13819]
 * resource/aws_ebs_snapshot: Add `arn` attribute [GH-13840]
 * resource/aws_ebs_snapshot: Support resource import [GH-13895]
 * resource/aws_ebs_snapshot_copy: Add `arn` attribute [GH-13840]
 * resource/aws_ec2_traffic_mirror_session: Add `arn` attribute [GH-13849]
+* resource/aws_ecs_service: Support `deployment_controller` configuration block `type` argument value of `EXTERNAL` (support external deployments) [GH-8134] / [GH-8652]
+* resource/aws_ecs_task_definition: Add `efs_volume_configuration` configuration block `authorization_config`, `transit_encryption`, and `transit_encryption_port` arguments (support EFS Access Points and transit encryption) [GH-13136]
 * resource/aws_glue_catalog_database: Add `arn` attribute [GH-13452]
 * resource/aws_iot_policy: Support resource import [GH-13707]
 * resource/aws_iot_topic_rule: Add `error_action` configuration block [GH-11922]
 * resource/aws_network_acl: Add `arn` attribute and plan-time validations for `ingress` and `egress` configuration block arguments [GH-13819]
 * resource/aws_placement_group: Add `arn` attribute [GH-13838]
 * resource/aws_ses_receipt_filter: Add `arn` attribute and plan-time validations for all arguments [GH-13811]
+* resource/aws_vpn_connection: Add `arn` attribute [GH-13836]
 * resource/aws_vpc_endpoint: Add `arn` attribute [GH-13853]
+* resource/aws_vpc_endpoint_service: Add `arn` attribute [GH-13858]
 * resource/aws_vpn_gateway: Add `arn` attribute [GH-13827]
 
 BUG FIXES:
 
+* resource/aws_batch_compute_environment: Ensure `desired_vcpus` is fully optional and wait for updates [GH-4855]
+* resource/aws_batch_compute_environment: Remove resource from Terraform state when not found instead of returning error [GH-13935]
+* resource/aws_cloudtrail: Properly configure single `event_selector` with no `data_resource` and `read_write_type` of `ReadOnly` or `WriteOnly` [GH-5448]
+* resource/aws_cloudtrail: Prevent `InvalidEventSelectorsException` error when removing all `event_selector` configuration [GH-5448]
+* resource/aws_default_route_table: Validate CIDR blocks for misalignment before attempting to create the route to ensure Terraform can read the information after EC2 API canonicalization [GH-13778]
+* resource/aws_default_route_table: Ensure empty string (`""`) validation in `cidr_block` and `ipv6_cidr_block` arguments continues to work for Terraform 0.11 support [GH-13778]
+* resource/aws_ecs_service: Add plan-time validation and prevent panics with empty `type` argument in `ordered_placement_strategy` configuration block [GH-13926]
+* resource/aws_ecs_task_definition: Prevent showing API ordering differences in `container_definitions` environment variables during update plans [GH-11463]
+* resource/aws_elasticsearch_domain: Ensure empty string (`""`) validation in `ebs_options` `volume_type` argument continues to work for Terraform 0.11 support [GH-13937]
 * resource/aws_iot_policy: Ensure `name` argument updates recreate the resource [GH-13707]
+* resource/aws_route: Validate CIDR blocks for misalignment before attempting to create the route to ensure Terraform can read the information after EC2 API canonicalization [GH-13778]
+* resource/aws_route: Ensure empty string (`""`) validation in `destination_cidr_block` and `destination_ipv6_cidr_block` arguments continues to work for Terraform 0.11 support [GH-13778]
+* resource/aws_route_table: Validate CIDR blocks for misalignment before attempting to create the route to ensure Terraform can read the information after EC2 API canonicalization [GH-13778]
+* resource/aws_route_table: Ensure empty string (`""`) validation in `cidr_block` and `ipv6_cidr_block` arguments continues to work for Terraform 0.11 support [GH-13778]
+* resource/aws_spot_fleet_request: Prevent crash with missing placement information [GH-13577]
 * resource/aws_vpc_endpoint: Skip `ModifyVpcEndpoint` API call on tags only updates [GH-13853]
+* resource/aws_vpc_endpoint: Wait for acceptance when `auto_accept` is enabled [GH-13876]
 * resource/aws_wafv2_web_acl: Prevent unexpected `UpdateWebACL` API errors on tags only updates [GH-13871]
 
 ## 2.67.0 (June 19, 2020)
