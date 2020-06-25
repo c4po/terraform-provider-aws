@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/apigateway"
 	"github.com/aws/aws-sdk-go/service/cognitoidentity"
 	"github.com/aws/aws-sdk-go/service/configservice"
-	"github.com/aws/aws-sdk-go/service/emr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/waf"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
@@ -1148,37 +1147,6 @@ func validateAwsEmrCustomAmiId(v interface{}, k string) (ws []string, errors []e
 			"%q must begin with 'ami-' and be comprised of only [a-z0-9]: %v", k, value))
 	}
 
-	return
-}
-
-func validateAwsEmrInstanceFleetType(v interface{}, k string) (ws []string, errors []error) {
-	validTypes := map[string]struct{}{
-		emr.InstanceFleetTypeMaster: {},
-		emr.InstanceFleetTypeCore:   {},
-		emr.InstanceFleetTypeTask:   {},
-	}
-
-	value := v.(string)
-
-	if _, ok := validTypes[value]; !ok {
-		errors = append(errors, fmt.Errorf(
-			"%q must be one of [%q, %q, %q]", k, emr.InstanceFleetTypeMaster, emr.InstanceFleetTypeCore, emr.InstanceFleetTypeTask))
-	}
-	return
-}
-
-func validateAwsEmrSpotProvisioningTimeOutAction(v interface{}, k string) (ws []string, errors []error) {
-	validTypes := map[string]struct{}{
-		emr.SpotProvisioningTimeoutActionSwitchToOnDemand: {},
-		emr.SpotProvisioningTimeoutActionTerminateCluster: {},
-	}
-
-	value := v.(string)
-
-	if _, ok := validTypes[value]; !ok {
-		errors = append(errors, fmt.Errorf(
-			"%q must be one of [%q, %q]", k, emr.SpotProvisioningTimeoutActionSwitchToOnDemand, emr.SpotProvisioningTimeoutActionTerminateCluster))
-	}
 	return
 }
 
