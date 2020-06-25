@@ -544,11 +544,17 @@ func resourceAwsEMRCluster() *schema.Resource {
 				Set: resourceAwsEMRClusterInstanceGroupHash,
 			},
 			"instance_fleet": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				ForceNew: true,
+				Type:          schema.TypeSet,
+				Optional:      true,
+				ForceNew:      true,
+				Computed:      true,
+				ConflictsWith: []string{"core_instance_group", "master_instance_group"},
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"id": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
 						"instance_fleet_type": {
 							Type:         schema.TypeString,
 							Required:     true,
