@@ -1167,6 +1167,21 @@ func validateAwsEmrInstanceFleetType(v interface{}, k string) (ws []string, erro
 	return
 }
 
+func validateAwsEmrSpotProvisioningTimeOutAction(v interface{}, k string) (ws []string, errors []error) {
+	validTypes := map[string]struct{}{
+		emr.SpotProvisioningTimeoutActionSwitchToOnDemand: {},
+		emr.SpotProvisioningTimeoutActionTerminateCluster: {},
+	}
+
+	value := v.(string)
+
+	if _, ok := validTypes[value]; !ok {
+		errors = append(errors, fmt.Errorf(
+			"%q must be one of [%q, %q]", k, emr.SpotProvisioningTimeoutActionSwitchToOnDemand, emr.SpotProvisioningTimeoutActionTerminateCluster))
+	}
+	return
+}
+
 func validateSfnStateMachineName(v interface{}, k string) (ws []string, errors []error) {
 	value := v.(string)
 	if len(value) > 80 {
