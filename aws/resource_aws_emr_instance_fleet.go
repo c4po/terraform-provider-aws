@@ -57,7 +57,7 @@ func resourceAwsEMRInstanceFleet() *schema.Resource {
 			"target_on_demand_capacity": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				Default:  1,
+				Default:  0,
 			},
 			"target_spot_capacity": {
 				Type:     schema.TypeInt,
@@ -86,7 +86,6 @@ func instanceTypeConfigSchema() *schema.Resource {
 			"bid_price": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Required: false,
 				ForceNew: true,
 			},
 			"bid_price_as_percentage_of_on_demand_price": {
@@ -99,11 +98,6 @@ func instanceTypeConfigSchema() *schema.Resource {
 				Optional: true,
 				ForceNew: true,
 				Elem:     configurationSchema(),
-			},
-			"ebs_optimized": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				ForceNew: true,
 			},
 			"ebs_config": {
 				Type:     schema.TypeSet,
@@ -201,16 +195,12 @@ func additionalConfigurationSchema() *schema.Resource {
 }
 
 func expandInstanceFleetConfig(data *schema.ResourceData) *emr.InstanceFleetConfig {
-	configInstanceFleetType := data.Get("instance_fleet_type").(string)
-	configName := data.Get("name").(string)
-	configTargetOnDemandCapacity := data.Get("target_on_demand_capacity").(int)
-	configTargetSpotCapacity := data.Get("target_spot_capacity").(int)
 
 	config := &emr.InstanceFleetConfig{
-		InstanceFleetType:      aws.String(configInstanceFleetType),
-		Name:                   aws.String(configName),
-		TargetOnDemandCapacity: aws.Int64(int64(configTargetOnDemandCapacity)),
-		TargetSpotCapacity:     aws.Int64(int64(configTargetSpotCapacity)),
+		InstanceFleetType:      aws.String(data.Get("instance_fleet_type").(string)),
+		Name:                   aws.String(data.Get("name").(string)),
+		TargetOnDemandCapacity: aws.Int64(int64(data.Get("target_on_demand_capacity").(int))),
+		TargetSpotCapacity:     aws.Int64(int64(data.Get("target_spot_capacity").(int))),
 	}
 
 	if v, ok := data.Get("instance_type_configs").(*schema.Set); ok && v.Len() > 0 {
@@ -262,10 +252,8 @@ func expandInstanceTypeConfigs(instanceTypeConfigs []interface{}) []*emr.Instanc
 	for _, raw := range instanceTypeConfigs {
 		configAttributes := raw.(map[string]interface{})
 
-		configInstanceType := configAttributes["instance_type"].(string)
-
 		config := &emr.InstanceTypeConfig{
-			InstanceType: aws.String(configInstanceType),
+			InstanceType: aws.String(configAttributes["instance_type"].(string)),
 		}
 
 		if bidPrice, ok := configAttributes["bid_price"]; ok {
@@ -288,10 +276,6 @@ func expandInstanceTypeConfigs(instanceTypeConfigs []interface{}) []*emr.Instanc
 
 		if v, ok := configAttributes["ebs_config"].(*schema.Set); ok && v.Len() == 1 {
 			config.EbsConfiguration = expandEbsConfiguration(v.List())
-
-			if v, ok := configAttributes["ebs_optimized"].(bool); ok {
-				config.EbsConfiguration.EbsOptimized = aws.Bool(v)
-			}
 		}
 
 		configsOut = append(configsOut, config)
@@ -436,16 +420,13 @@ func resourceAwsEMRInstanceFleetUpdate(d *schema.ResourceData, meta interface{})
 	conn := meta.(*AWSClient).emrconn
 
 	log.Printf("[DEBUG] Modify EMR task fleet")
-	clusterId := d.Get("cluster_id").(string)
-	targetOnDemandCapacity := d.Get("target_on_demand_capacity").(int)
-	targetSpotCapacity := d.Get("target_spot_capacity").(int)
 
 	modifyInstanceFleetInput := &emr.ModifyInstanceFleetInput{
-		ClusterId: aws.String(clusterId),
+		ClusterId: aws.String(d.Get("cluster_id").(string)),
 		InstanceFleet: &emr.InstanceFleetModifyConfig{
 			InstanceFleetId:        aws.String(d.Id()),
-			TargetOnDemandCapacity: aws.Int64(int64(targetOnDemandCapacity)),
-			TargetSpotCapacity:     aws.Int64(int64(targetSpotCapacity)),
+			TargetOnDemandCapacity: aws.Int64(int64(d.Get("target_on_demand_capacity").(int))),
+			TargetSpotCapacity:     aws.Int64(int64(d.Get("target_spot_capacity").(int))),
 		},
 	}
 
