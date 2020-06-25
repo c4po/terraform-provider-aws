@@ -569,10 +569,9 @@ func resourceAwsEMRCluster() *schema.Resource {
 							Elem: instanceTypeConfigSchema(),
 						},
 						"launch_specifications": {
-							Type:     schema.TypeSet,
+							Type:     schema.TypeList,
 							Optional: true,
 							// ForceNew: true,
-							MinItems: 1,
 							MaxItems: 1,
 							Elem:     launchSpecificationsSchema(),
 						},
@@ -620,9 +619,8 @@ func resourceAwsEMRCluster() *schema.Resource {
 							Elem:     instanceTypeConfigSchema(),
 						},
 						"launch_specifications": {
-							Type:     schema.TypeSet,
+							Type:     schema.TypeList,
 							Optional: true,
-							MinItems: 1,
 							MaxItems: 1,
 							Elem:     launchSpecificationsSchema(),
 						},
@@ -1228,18 +1226,12 @@ func resourceAwsEMRClusterRead(d *schema.ResourceData, meta interface{}) error {
 		coreFleet := findInstanceFleet(instanceFleets, emr.InstanceRoleTypeCore)
 		masterFleet := findInstanceFleet(instanceFleets, emr.InstanceRoleTypeMaster)
 
-		flattenedCoreInstanceFleet, err := flattenInstanceFleet(coreFleet)
-		if err != nil {
-			return fmt.Errorf("error flattening instance fleets: %s", err)
-		}
+		flattenedCoreInstanceFleet := flattenInstanceFleet(coreFleet)
 		if err := d.Set("core_instance_fleet", []interface{}{flattenedCoreInstanceFleet}); err != nil {
 			return fmt.Errorf("error setting core_instance_fleet: %s", err)
 		}
 
-		flattenedMasterInstanceFleet, err := flattenInstanceFleet(masterFleet)
-		if err != nil {
-			return fmt.Errorf("error flattening instance fleets: %s", err)
-		}
+		flattenedMasterInstanceFleet := flattenInstanceFleet(masterFleet)
 		if err := d.Set("master_instance_fleet", []interface{}{flattenedMasterInstanceFleet}); err != nil {
 			return fmt.Errorf("error setting master_instance_fleet: %s", err)
 		}
@@ -1934,7 +1926,7 @@ func flattenInstanceGroups(igs []*emr.InstanceGroup) (*schema.Set, error) {
 	return schema.NewSet(resourceAwsEMRClusterInstanceGroupHash, instanceGroupSet), nil
 }
 
-func flatteninstanceTypeConfig(itc *emr.InstanceTypeSpecification) (map[string]interface{}, error) {
+func flatteninstanceTypeConfig(itc *emr.InstanceTypeSpecification) map[string]interface{} {
 	attrs := map[string]interface{}{}
 	if itc.BidPrice != nil {
 		attrs["bid_price"] = *itc.BidPrice
@@ -1945,10 +1937,10 @@ func flatteninstanceTypeConfig(itc *emr.InstanceTypeSpecification) (map[string]i
 	attrs["ebs_config"] = flattenEBSConfig(itc.EbsBlockDevices)
 	attrs["instance_type"] = *itc.InstanceType
 	attrs["weighted_capacity"] = *itc.WeightedCapacity
-	return attrs, nil
+	return attrs
 }
 
-func flattenInstanceFleet(ig *emr.InstanceFleet) (map[string]interface{}, error) {
+func flattenInstanceFleet(ig *emr.InstanceFleet) map[string]interface{} {
 	attrs := map[string]interface{}{}
 
 	attrs["id"] = *ig.Id
@@ -1958,11 +1950,7 @@ func flattenInstanceFleet(ig *emr.InstanceFleet) (map[string]interface{}, error)
 	attrs["target_spot_capacity"] = *ig.TargetSpotCapacity
 	instanceTypeConfigs := []interface{}{}
 	for _, itc := range ig.InstanceTypeSpecifications {
-		flattenTypeConfig, err := flatteninstanceTypeConfig(itc)
-		if err != nil {
-			return nil, err
-		}
-
+		flattenTypeConfig := flatteninstanceTypeConfig(itc)
 		instanceTypeConfigs = append(instanceTypeConfigs, flattenTypeConfig)
 	}
 	attrs["instance_type_configs"] = instanceTypeConfigs
@@ -1983,20 +1971,7 @@ func flattenInstanceFleet(ig *emr.InstanceFleet) (map[string]interface{}, error)
 		launchSpecifications = append(launchSpecifications, launchSpecification)
 		attrs["launch_specifications"] = launchSpecifications
 	}
-	return attrs, nil
-}
-
-func flattenInstanceFleets(ifleets []*emr.InstanceFleet) (*schema.Set, error) {
-	instanceFleetSet := []interface{}{}
-	for _, fleet := range ifleets {
-		flattenedInstanceFleet, err := flattenInstanceFleet(fleet)
-		if err != nil {
-			return nil, err
-		}
-		instanceFleetSet = append(instanceFleetSet, flattenedInstanceFleet)
-	}
-
-	return schema.NewSet(resourceAwsEMRClusterInstanceFleetHash, instanceFleetSet), nil
+	return attrs
 }
 
 func flattenEBSConfig(ebsBlockDevices []*emr.EbsBlockDevice) *schema.Set {
@@ -2379,22 +2354,6 @@ func resourceAwsEMRClusterInstanceGroupHash(v interface{}) int {
 			}
 		}
 	}
-
-	return hashcode.String(buf.String())
-}
-
-func resourceAwsEMRClusterInstanceFleetHash(v interface{}) int {
-	var buf bytes.Buffer
-	m := v.(map[string]interface{})
-	// if len(instanceFleets) > 1 {
-	// 	for _, fleet := range instanceFleets {
-	// 		fleetMap := fleet.(map[string]interface{})
-	buf.WriteString(fmt.Sprintf("%s-", m["name"].(string)))
-	buf.WriteString(fmt.Sprintf("%s-", m["instance_fleet_type"].(string)))
-	buf.WriteString(fmt.Sprintf("%d-", m["target_on_demand_capacity"]))
-	buf.WriteString(fmt.Sprintf("%d-", m["target_spot_capacity"]))
-	// 	}
-	// }
 
 	return hashcode.String(buf.String())
 }

@@ -42,10 +42,9 @@ func resourceAwsEMRInstanceFleet() *schema.Resource {
 				Elem:     instanceTypeConfigSchema(),
 			},
 			"launch_specifications": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				ForceNew: true,
-				MinItems: 1,
 				MaxItems: 1,
 				Elem:     launchSpecificationsSchema(),
 			},
@@ -124,10 +123,9 @@ func launchSpecificationsSchema() *schema.Resource {
 	return &schema.Resource{
 		Schema: map[string]*schema.Schema{
 			"spot_specification": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Required: true,
 				ForceNew: true,
-				MaxItems: 1,
 				MinItems: 1,
 				Elem:     spotSpecificationSchema(),
 			},
@@ -212,38 +210,6 @@ func expandInstanceFleetConfig(data *schema.ResourceData) *emr.InstanceFleetConf
 	}
 
 	return config
-}
-
-func expandInstanceFleetConfigs(instanceFleetConfigs []interface{}) ([]*emr.InstanceFleetConfig, error) {
-	configsOut := []*emr.InstanceFleetConfig{}
-
-	for _, raw := range instanceFleetConfigs {
-		configAttributes := raw.(map[string]interface{})
-
-		configInstanceFleetType := configAttributes["instance_fleet_type"].(string)
-		configName := configAttributes["name"].(string)
-		configTargetOnDemandCapacity := configAttributes["target_on_demand_capacity"].(int)
-		configTargetSpotCapacity := configAttributes["target_spot_capacity"].(int)
-
-		config := &emr.InstanceFleetConfig{
-			InstanceFleetType:      aws.String(configInstanceFleetType),
-			Name:                   aws.String(configName),
-			TargetOnDemandCapacity: aws.Int64(int64(configTargetOnDemandCapacity)),
-			TargetSpotCapacity:     aws.Int64(int64(configTargetSpotCapacity)),
-		}
-
-		if v, ok := configAttributes["instance_type_configs"].(*schema.Set); ok && v.Len() > 0 {
-			config.InstanceTypeConfigs = expandInstanceTypeConfigs(v.List())
-		}
-
-		if v, ok := configAttributes["launch_specifications"].(*schema.Set); ok && v.Len() == 1 {
-			config.LaunchSpecifications = expandLaunchSpecification(v.List()[0])
-		}
-
-		configsOut = append(configsOut, config)
-	}
-
-	return configsOut, nil
 }
 
 func expandInstanceTypeConfigs(instanceTypeConfigs []interface{}) []*emr.InstanceTypeConfig {
