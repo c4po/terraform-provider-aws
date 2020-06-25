@@ -565,8 +565,8 @@ func resourceAwsEMRCluster() *schema.Resource {
 						"instance_type_configs": {
 							Type:     schema.TypeSet,
 							Optional: true,
-							ForceNew: true,
-							Elem:     instanceTypeConfigSchema(),
+							// ForceNew: true,
+							Elem: instanceTypeConfigSchema(),
 						},
 						"launch_specifications": {
 							Type:     schema.TypeSet,
@@ -1965,9 +1965,24 @@ func flattenInstanceFleet(ig *emr.InstanceFleet) (map[string]interface{}, error)
 
 		instanceTypeConfigs = append(instanceTypeConfigs, flattenTypeConfig)
 	}
-
 	attrs["instance_type_configs"] = instanceTypeConfigs
 
+	if ig.LaunchSpecifications != nil {
+		spotProvisioningSpecification := make(map[string]interface{})
+		if ig.LaunchSpecifications.SpotSpecification.BlockDurationMinutes != nil {
+			spotProvisioningSpecification["block_duration_minutes"] = *ig.LaunchSpecifications.SpotSpecification.BlockDurationMinutes
+		}
+		spotProvisioningSpecification["timeout_action"] = *ig.LaunchSpecifications.SpotSpecification.TimeoutAction
+		spotProvisioningSpecification["timeout_duration_minutes"] = *ig.LaunchSpecifications.SpotSpecification.TimeoutDurationMinutes
+
+		launchSpecifications := make([]interface{}, 0)
+		launchSpecification := make(map[string]interface{})
+		spotSpecifications := make([]interface{}, 0)
+		spotSpecifications = append(spotSpecifications, spotProvisioningSpecification)
+		launchSpecification["spot_specification"] = spotSpecifications
+		launchSpecifications = append(launchSpecifications, launchSpecification)
+		attrs["launch_specifications"] = launchSpecifications
+	}
 	return attrs, nil
 }
 

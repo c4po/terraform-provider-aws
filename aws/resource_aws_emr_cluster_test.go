@@ -4085,43 +4085,57 @@ resource "aws_emr_cluster" "tf-test-cluster" {
     emr_managed_slave_security_group  = "${aws_security_group.allow_all.id}"
     instance_profile                  = "${aws_iam_instance_profile.emr_profile.arn}"
   }
-  instance_fleet = [
-   {
+  master_instance_fleet    {
     instance_fleet_type = "MASTER"
-    instance_type_configs = [
-        {
+    instance_type_configs        {
           instance_type = "m3.xlarge"
         }
-      ]
+    
       target_on_demand_capacity = 1
-    },
-    {
-      instance_fleet_type = "CORE"
-      instance_type_configs = [
-        {
-          bid_price_as_percentage_of_on_demand_price = 80
-          ebs_optimized = true
-          ebs_config {
-            size                 = 100
-            type                 = "gp2"
-            volumes_per_instance = 1
-          }
-          instance_type     = "m3.xlarge"
-          weighted_capacity = 1
-        }
-      ]
-      launch_specifications {
-        spot_specification {
-          block_duration_minutes   = 60
-          timeout_action           = "SWITCH_TO_ON_DEMAND"
-          timeout_duration_minutes = 10
-        }
-      }
-      name                      = "instance-fleet-test"
-      target_on_demand_capacity = 0
-      target_spot_capacity      = 1
     }
-  ]
+  core_instance_fleet {
+    instance_fleet_type = "CORE"
+    instance_type_configs {
+      bid_price_as_percentage_of_on_demand_price = 80
+      ebs_config {
+        size                 = 100
+        type                 = "gp2"
+        volumes_per_instance = 1
+      }
+      instance_type     = "m3.xlarge"
+      weighted_capacity = 1
+    }
+    instance_type_configs {
+      bid_price_as_percentage_of_on_demand_price = 100
+      ebs_config {
+        size                 = 100
+        type                 = "gp2"
+        volumes_per_instance = 1
+      }
+      instance_type     = "m4.xlarge"
+      weighted_capacity = 1
+    }
+    instance_type_configs {
+      bid_price_as_percentage_of_on_demand_price = 100
+      ebs_config {
+        size                 = 100
+        type                 = "gp2"
+        volumes_per_instance = 1
+      }
+      instance_type     = "m4.2xlarge"
+      weighted_capacity = 2
+    }
+    launch_specifications {
+      spot_specification {
+        block_duration_minutes   = 0
+        timeout_action           = "SWITCH_TO_ON_DEMAND"
+        timeout_duration_minutes = 10
+      }
+    }
+    name                      = "core fleet"
+    target_on_demand_capacity = 0
+    target_spot_capacity      = 2
+  }
   tags {
     role     = "rolename"
     dns_zone = "env_zone"
