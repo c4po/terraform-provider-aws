@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 	"github.com/terraform-providers/terraform-provider-aws/aws/internal/keyvaluetags"
+	iamwaiter "github.com/terraform-providers/terraform-provider-aws/aws/internal/service/iam/waiter"
 )
 
 func resourceAwsSpotFleetRequest() *schema.Resource {
@@ -31,7 +32,7 @@ func resourceAwsSpotFleetRequest() *schema.Resource {
 		},
 		Timeouts: &schema.ResourceTimeout{
 			Create: schema.DefaultTimeout(10 * time.Minute),
-			Delete: schema.DefaultTimeout(5 * time.Minute),
+			Delete: schema.DefaultTimeout(15 * time.Minute),
 		},
 
 		SchemaVersion: 1,
@@ -907,9 +908,6 @@ func resourceAwsSpotFleetRequestCreate(d *schema.ResourceData, meta interface{})
 			return err
 		}
 		spotFleetConfig.ValidUntil = aws.Time(validUntil)
-	} else {
-		validUntil := time.Now().Add(24 * time.Hour)
-		spotFleetConfig.ValidUntil = aws.Time(validUntil)
 	}
 
 	if v, ok := d.GetOk("load_balancers"); ok && v.(*schema.Set).Len() > 0 {
@@ -953,19 +951,18 @@ func resourceAwsSpotFleetRequestCreate(d *schema.ResourceData, meta interface{})
 	// Since IAM is eventually consistent, we retry creation as a newly created role may not
 	// take effect immediately, resulting in an InvalidSpotFleetRequestConfig error
 	var resp *ec2.RequestSpotFleetOutput
-	err := resource.Retry(10*time.Minute, func() *resource.RetryError {
+	err := resource.Retry(iamwaiter.PropagationTimeout, func() *resource.RetryError {
 		var err error
 		resp, err = conn.RequestSpotFleet(spotFleetOpts)
 
-		if isAWSErr(err, "InvalidSpotFleetRequestConfig", "Duplicate: Parameter combination") {
-			return resource.NonRetryableError(fmt.Errorf("Error creating Spot fleet request: %s", err))
+		if isAWSErr(err, "InvalidSpotFleetRequestConfig", "Parameter: SpotFleetRequestConfig.IamFleetRole is invalid") {
+			return resource.RetryableError(err)
 		}
-		if isAWSErr(err, "InvalidSpotFleetRequestConfig", "") {
-			return resource.RetryableError(fmt.Errorf("Error creating Spot fleet request, retrying: %s", err))
-		}
+
 		if err != nil {
 			return resource.NonRetryableError(err)
 		}
+
 		return nil
 	})
 
@@ -1604,11 +1601,11 @@ func hashLaunchSpecification(v interface{}) int {
 	var buf bytes.Buffer
 	m := v.(map[string]interface{})
 	buf.WriteString(fmt.Sprintf("%s-", m["ami"].(string)))
-	if m["availability_zone"] != "" {
-		buf.WriteString(fmt.Sprintf("%s-", m["availability_zone"].(string)))
+	if v, ok := m["availability_zone"].(string); ok && v != "" {
+		buf.WriteString(fmt.Sprintf("%s-", v))
 	}
-	if m["subnet_id"] != "" {
-		buf.WriteString(fmt.Sprintf("%s-", m["subnet_id"].(string)))
+	if v, ok := m["subnet_id"].(string); ok && v != "" {
+		buf.WriteString(fmt.Sprintf("%s-", v))
 	}
 	buf.WriteString(fmt.Sprintf("%s-", m["instance_type"].(string)))
 	buf.WriteString(fmt.Sprintf("%s-", m["spot_price"].(string)))

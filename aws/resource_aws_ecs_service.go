@@ -28,6 +28,10 @@ func resourceAwsEcsService() *schema.Resource {
 			State: resourceAwsEcsServiceImport,
 		},
 
+		Timeouts: &schema.ResourceTimeout{
+			Delete: schema.DefaultTimeout(20 * time.Minute),
+		},
+
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -248,12 +252,10 @@ func resourceAwsEcsService() *schema.Resource {
 					},
 				},
 			},
-			"placement_strategy": {
-				Type:     schema.TypeSet,
+			"ordered_placement_strategy": {
+				Type:     schema.TypeList,
 				Optional: true,
-				Computed: true,
 				MaxItems: 5,
-				Removed:  "Use `ordered_placement_strategy` configuration block(s) instead",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"type": {
@@ -264,26 +266,6 @@ func resourceAwsEcsService() *schema.Resource {
 								ecs.PlacementStrategyTypeRandom,
 								ecs.PlacementStrategyTypeSpread,
 							}, false),
-						},
-						"field": {
-							Type:     schema.TypeString,
-							Optional: true,
-							DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-								return strings.EqualFold(old, new)
-							},
-						},
-					},
-				},
-			},
-			"ordered_placement_strategy": {
-				Type:     schema.TypeList,
-				Optional: true,
-				MaxItems: 5,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"type": {
-							Type:     schema.TypeString,
-							Required: true,
 						},
 						"field": {
 							Type:     schema.TypeString,
@@ -857,9 +839,24 @@ func expandPlacementStrategy(s []interface{}) ([]*ecs.PlacementStrategy, error) 
 	}
 	pss := make([]*ecs.PlacementStrategy, 0)
 	for _, raw := range s {
-		p := raw.(map[string]interface{})
-		t := p["type"].(string)
-		f := p["field"].(string)
+		p, ok := raw.(map[string]interface{})
+
+		if !ok {
+			continue
+		}
+
+		t, ok := p["type"].(string)
+
+		if !ok {
+			return nil, fmt.Errorf("missing type attribute in placement strategy configuration block")
+		}
+
+		f, ok := p["field"].(string)
+
+		if !ok {
+			return nil, fmt.Errorf("missing field attribute in placement strategy configuration block")
+		}
+
 		if err := validateAwsEcsPlacementStrategy(t, f); err != nil {
 			return nil, err
 		}
@@ -1094,7 +1091,7 @@ func resourceAwsEcsServiceDelete(d *schema.ResourceData, meta interface{}) error
 		Cluster: aws.String(d.Get("cluster").(string)),
 	}
 	// Wait until the ECS service is drained
-	err = resource.Retry(5*time.Minute, func() *resource.RetryError {
+	err = resource.Retry(d.Timeout(schema.TimeoutDelete), func() *resource.RetryError {
 		log.Printf("[DEBUG] Trying to delete ECS service %s", input)
 		_, err := conn.DeleteService(&input)
 		if err != nil {

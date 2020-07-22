@@ -15,6 +15,7 @@
     - [Pull Request Merge Process](#pull-request-merge-process)
     - [Pull Request Types to CHANGELOG](#pull-request-types-to-changelog)
 - [Breaking Changes](#breaking-changes)
+- [Branch Dictionary](#branch-dictionary)
 - [Environment Variable Dictionary](#environment-variable-dictionary)
 - [Label Dictionary](#label-dictionary)
 
@@ -82,11 +83,8 @@ Create an issue to cover the update noting down any areas of particular interest
 Ensure that the following steps are tracked within the issue and completed within the resulting pull request.
 
 - Update go version in `go.mod`
-- Verify all formatting, linting, and testing works as expected
-- Verify `gox` builds for all currently supported architectures:
-```
-gox -os='linux darwin windows freebsd openbsd solaris' -arch='386 amd64 arm' -osarch='!darwin/arm !darwin/386' -ldflags '-s -w -X aws/version.ProviderVersion=99.99.99 -X aws/version.ProtocolVersion=4' -output 'results/{{.OS}}_{{.Arch}}/terraform-provider-aws_v99.99.99_x4' .
-```
+- Verify `make test lint` works as expected
+- Verify `goreleaser build --snapshot` succeeds for all currently supported architectures
 - Verify `goenv` support for the new version
 - Update `docs/DEVELOPMENT.md`
 - Update `.github/workflows/*.yml`
@@ -344,6 +342,17 @@ When breaking changes to the provider are necessary we release them in a major v
 - Add the issue/PR to the next major version milestone.
 - Leave a comment why this is a breaking change or otherwise only being considered for a major version update. If possible, detail any changes that might be made for the contributor to accomplish the task without a breaking change.
 
+## Branch Dictionary
+
+The following branch conventions are used:
+
+| Branch | Example | Description |
+|--------|---------|-------------|
+| `master` | `master` | Main, unreleased code branch. |
+| `release/*` | `release/2.x` | Backport branches for previous major releases. |
+
+Additional branch naming recommendations can be found in the [Pull Request Submission and Lifecycle documentation](contributing/pullrequest-submission-and-lifecycle.md#branch-prefixes).
+
 ## Environment Variable Dictionary
 
 Environment variables (beyond standard AWS Go SDK ones) used by acceptance testing.
@@ -393,6 +402,7 @@ Environment variables (beyond standard AWS Go SDK ones) used by acceptance testi
 | `AWS_COGNITO_USER_POOL_DOMAIN_CERTIFICATE_ARN` | Amazon Resource Name of ACM Certificate in `us-east-1` for Cognito User Pool Domain Name testing. |
 | `AWS_COGNITO_USER_POOL_DOMAIN_ROOT_DOMAIN` | Root domain name to use with Cognito User Pool Domain testing. |
 | `AWS_DEFAULT_REGION` | Primary AWS region for tests. Defaults to `us-west-2`. |
+| `AWS_EC2_CLIENT_VPN_LIMIT` | Concurrency limit for Client VPN acceptance tests. [Default is 5](https://docs.aws.amazon.com/vpn/latest/clientvpn-admin/limits.html) if not specified. |
 | `AWS_EC2_EIP_PUBLIC_IPV4_POOL` | Identifier for EC2 Public IPv4 Pool for EC2 EIP testing. |
 | `AWS_GUARDDUTY_MEMBER_ACCOUNT_ID` | Identifier of AWS Account for GuardDuty Member testing. **DEPRECATED:** Should be replaced with standard alternate account handling for tests. |
 | `AWS_GUARDDUTY_MEMBER_EMAIL` | Email address for GuardDuty Member testing. **DEPRECATED:** It may be possible to use a placeholder email address instead. |
